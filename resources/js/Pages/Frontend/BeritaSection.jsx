@@ -1,77 +1,130 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Link } from "@inertiajs/react";
 import { motion } from "framer-motion";
-import { fadeInUp, staggerContainer } from "@/Components/Animations";
+import { fadeInUp } from "@/Components/Animations";
 
 export default function BeritaSection({ posts = [] }) {
+  const scrollContainerRef = useRef(null);
+
+  const scroll = (direction) => {
+    if (scrollContainerRef.current) {
+      const scrollAmount = 380;
+      scrollContainerRef.current.scrollBy({
+        left: direction === "next" ? scrollAmount : -scrollAmount,
+        behavior: "smooth",
+      });
+    }
+  };
+
   return (
     <div id="berita" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header Judul & Navigasi */}
         <motion.div
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
           variants={fadeInUp}
-          className="flex justify-between items-end mb-12"
+          className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-12 gap-4"
         >
           <div>
-            <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest mb-2">
+            <h3 className="text-sm font-bold text-blue-600 uppercase tracking-widest mb-1.5">
               Informasi
             </h3>
-            <h2 className="text-3xl font-bold text-gray-900">
+            <h2 className="text-3xl font-extrabold text-gray-900">
               Berita Sekolah Terkini
             </h2>
           </div>
-          <Link
-            href="/berita"
-            className="text-blue-600 font-semibold hover:text-yellow-500 hover:underline transition"
-          >
-            Lihat Semua Berita &rarr;
-          </Link>
+
+          <div className="flex items-center gap-3">
+            {posts.length > 3 && (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => scroll("prev")}
+                  aria-label="Geser ke kiri"
+                  className="w-10 h-10 rounded-full border border-gray-200 bg-white hover:bg-blue-600 hover:text-white text-gray-700 flex items-center justify-center transition shadow-sm cursor-pointer"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => scroll("next")}
+                  aria-label="Geser ke kanan"
+                  className="w-10 h-10 rounded-full border border-gray-200 bg-white hover:bg-blue-600 hover:text-white text-gray-700 flex items-center justify-center transition shadow-sm cursor-pointer"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </button>
+              </div>
+            )}
+            <Link
+              href="/berita"
+              className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition inline-flex items-center gap-1"
+            >
+              Lihat Semua Berita &rarr;
+            </Link>
+          </div>
         </motion.div>
 
+        {/* Konten Kartu Berita (Posisinya Otomatis ke Tengah) */}
         {posts.length > 0 ? (
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={staggerContainer}
-            className={`gap-8 ${
-              posts.length === 1
-                ? "flex justify-center"
-                : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+          <div
+            ref={scrollContainerRef}
+            className={`flex gap-8 overflow-x-auto pb-6 scrollbar-hide scroll-smooth ${
+              posts.length < 3 ? "justify-center" : "justify-start"
             }`}
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
             {posts.map((post) => (
-              <motion.div
+              <div
                 key={post.id}
-                variants={fadeInUp}
-                className={`bg-white rounded-xl shadow-md overflow-hidden hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 group flex flex-col ${
-                  posts.length === 1 ? "w-full max-w-md" : ""
-                }`}
+                className="w-full sm:w-[350px] lg:w-[370px] flex-shrink-0 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col group"
               >
-                <div className="h-48 bg-gray-200 overflow-hidden relative">
-                  <div className="absolute inset-0 bg-blue-900 opacity-0 group-hover:opacity-20 transition z-10"></div>
+                {/* Gambar Thumbnail */}
+                <div className="h-52 bg-gray-100 overflow-hidden relative">
                   <img
                     src={
                       post.featured_image
-                        ? `/storage/${post.featured_image}`
-                        : `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                            post.title,
-                          )}&background=random`
+                        ? post.featured_image.startsWith("http")
+                          ? post.featured_image
+                          : `/storage/${post.featured_image}`
+                        : `https://ui-avatars.com/api/?name=${encodeURIComponent(post.title)}&background=random`
                     }
                     alt={post.title}
-                    className="w-full h-full object-cover transform group-hover:scale-110 transition duration-500"
+                    className="w-full h-full object-cover transform group-hover:scale-105 transition duration-500"
                   />
                   {post.category && (
-                    <span className="absolute top-3 left-3 z-20 px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full shadow-md uppercase tracking-wider">
+                    <span className="absolute top-3.5 left-3.5 px-3 py-1 bg-blue-600 text-white text-[11px] font-bold rounded-full uppercase tracking-wider shadow">
                       {post.category.name}
                     </span>
                   )}
                 </div>
 
+                {/* Deskripsi & Judul */}
                 <div className="p-6 flex flex-col flex-grow">
-                  <p className="text-xs text-gray-500 mb-2 font-semibold uppercase">
+                  <p className="text-xs text-gray-400 font-semibold uppercase mb-2">
                     {new Date(post.created_at).toLocaleDateString("id-ID", {
                       day: "numeric",
                       month: "long",
@@ -79,38 +132,41 @@ export default function BeritaSection({ posts = [] }) {
                     })}
                   </p>
 
-                  <h4 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2 hover:text-blue-600 transition">
+                  <h4 className="text-lg font-bold text-gray-900 line-clamp-2 mb-3 group-hover:text-blue-600 transition">
                     <Link href={`/berita/${post.slug}`}>{post.title}</Link>
                   </h4>
 
-                  <p className="text-gray-600 text-sm line-clamp-3 mb-4 flex-grow">
+                  <p className="text-gray-500 text-sm line-clamp-3 mb-5 flex-grow leading-relaxed">
                     {post.meta_description ||
                       "Baca selengkapnya mengenai berita ini di halaman detail."}
                   </p>
 
+                  {/* Tag Berita */}
                   {post.tags && post.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-3 border-t border-gray-100">
+                    <div className="flex flex-wrap gap-1.5 pt-3 mb-4 border-t border-gray-100">
                       {post.tags.slice(0, 3).map((tag) => (
                         <span
                           key={tag.id}
-                          className="px-2.5 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium rounded-md transition"
+                          className="px-2.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-md"
                         >
                           #{tag.name}
                         </span>
                       ))}
-                      {post.tags.length > 3 && (
-                        <span className="text-xs text-gray-400 self-center">
-                          +{post.tags.length - 3}
-                        </span>
-                      )}
                     </div>
                   )}
+
+                  <Link
+                    href={`/berita/${post.slug}`}
+                    className="mt-auto inline-flex items-center text-sm font-bold text-blue-600 hover:text-blue-800 gap-1.5"
+                  >
+                    Baca Selengkapnya &rarr;
+                  </Link>
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         ) : (
-          <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+          <div className="text-center py-16 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
             <p className="text-gray-500">
               Belum ada berita yang diterbitkan saat ini.
             </p>

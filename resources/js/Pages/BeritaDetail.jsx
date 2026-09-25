@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from "react";
-import { Head, Link, usePage } from "@inertiajs/react";
+import React, { useState, useEffect, useRef } from "react";
+import { Head, Link, usePage, router } from "@inertiajs/react";
 import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "@/Components/Navbar";
 import Footer from "@/Components/Footer";
 import ScrollToTop from "@/Components/ScrollToTop";
 import { fadeInUp, staggerContainer } from "@/Components/Animations";
 
-export default function BeritaDetail({ post, relatedPosts = [] }) {
+export default function BeritaDetail({
+  post,
+  relatedPosts = [],
+  isLiked = false,
+}) {
   const { url, props } = usePage();
   const dataPengaturan = props.pengaturanWeb || {};
   const namaSekolah = dataPengaturan.nama_sekolah || "SDN 59 Payakumbuh";
 
-  // Memastikan Base URL selalu valid dan absolut (HTTPS)
   const baseUrl =
     typeof window !== "undefined"
       ? window.location.origin
@@ -20,6 +23,40 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
   const fullUrl = `${baseUrl}${url}`;
   const [currentUrl, setCurrentUrl] = useState(fullUrl);
   const [copied, setCopied] = useState(false);
+
+  // Form Komentar Utama
+  const [formComment, setFormComment] = useState({ nama: "", komentar: "" });
+  const [showEmojiMain, setShowEmojiMain] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Balas Komentar (Reply) State
+  const [replyTarget, setReplyTarget] = useState(null); // id komentar induk yang dibalas
+  const [formReply, setFormReply] = useState({ nama: "", komentar: "" });
+  const [showEmojiReply, setShowEmojiReply] = useState(false);
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+
+  const emojiList = [
+    "👍",
+    "👏",
+    "❤️",
+    "😊",
+    "🎉",
+    "🔥",
+    "🙏",
+    "💡",
+    "✨",
+    "📚",
+    "🏆",
+    "🌟",
+    "💪",
+    "🎓",
+    "🙌",
+    "🤩",
+    "🤝",
+    "🥳",
+    "💯",
+    "💖",
+  ];
 
   useEffect(() => {
     setCurrentUrl(window.location.href);
@@ -34,7 +71,6 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
       })
     : "";
 
-  // Gambar thumbnail wajib berupa URL absolut lengkap dengan https://
   const gambarThumbnail = post?.featured_image
     ? post.featured_image.startsWith("http")
       ? post.featured_image
@@ -49,14 +85,12 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
       ? post.content.replace(/<[^>]*>?/gm, "").substring(0, 160)
       : "Baca selengkapnya mengenai berita ini di situs resmi sekolah kami.");
 
-  // Salin Tautan ke Clipboard
   const handleCopyLink = () => {
     navigator.clipboard.writeText(currentUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Web Share API Bawaan Smartphone (Android / iOS)
   const handleNativeShare = async () => {
     if (navigator.share) {
       try {
@@ -73,8 +107,63 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
     }
   };
 
+  const handleLike = () => {
+    router.post(`/berita/${post.slug}/like`, {}, { preserveScroll: true });
+  };
+
+  // Submit Komentar Utama
+  const handleSubmitKomentar = (e) => {
+    e.preventDefault();
+    if (!formComment.nama.trim() || !formComment.komentar.trim()) return;
+
+    setIsSubmitting(true);
+    router.post(`/berita/${post.slug}/komentar`, formComment, {
+      preserveScroll: true,
+      onSuccess: () => {
+        setFormComment({ nama: "", komentar: "" });
+        setShowEmojiMain(false);
+        setIsSubmitting(false);
+      },
+      onError: () => setIsSubmitting(false),
+    });
+  };
+
+  // Submit Balasan (Reply)
+  const handleSubmitReply = (e, parentId) => {
+    e.preventDefault();
+    if (!formReply.nama.trim() || !formReply.komentar.trim()) return;
+
+    setIsSubmittingReply(true);
+    router.post(
+      `/berita/${post.slug}/komentar`,
+      {
+        ...formReply,
+        parent_id: parentId,
+      },
+      {
+        preserveScroll: true,
+        onSuccess: () => {
+          setFormReply({ nama: "", komentar: "" });
+          setReplyTarget(null);
+          setShowEmojiReply(false);
+          setIsSubmittingReply(false);
+        },
+        onError: () => setIsSubmittingReply(false),
+      },
+    );
+  };
+
+  // Hitung total komentar beserta balasan
+  const hitungTotalKomentar = () => {
+    if (!post?.comments) return 0;
+    return post.comments.reduce(
+      (total, c) => total + 1 + (c.replies?.length || 0),
+      0,
+    );
+  };
+
   return (
-    <div className="bg-gray-50 min-h-screen font-sans text-gray-800 scroll-smooth relative overflow-hidden">
+    <div className="bg-gray-50 min-h-screen font-sans text-gray-800 scroll-smooth relative overflow-hidden flex flex-col justify-between">
       <Head>
         <title>{`${post?.title || "Berita"} - ${namaSekolah}`}</title>
         <meta name="description" content={metaDeskripsi} />
@@ -87,7 +176,6 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
           />
         )}
 
-        {/* OPEN GRAPH KHUSUS WHATSAPP & MEDIA SOSIAL */}
         <meta property="og:type" content="article" />
         <meta property="og:site_name" content={namaSekolah} />
         <meta property="og:title" content={post?.title} />
@@ -98,23 +186,24 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
         <meta property="og:image:width" content="1200" />
         <meta property="og:image:height" content="630" />
 
-        {/* TWITTER / X CARD */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={post?.title} />
         <meta name="twitter:description" content={metaDeskripsi} />
         <meta name="twitter:image" content={gambarThumbnail} />
       </Head>
 
-      <Navbar />
+      <header className="sticky top-0 z-50 w-full bg-white/95 backdrop-blur-md shadow-sm transition-all duration-300 border-b border-gray-100">
+        <Navbar />
+      </header>
 
-      <div className="max-w-4xl mx-auto mt-10 px-4 sm:px-6 lg:px-8 pb-20">
+      <main className="flex-grow max-w-4xl mx-auto mt-10 px-4 sm:px-6 lg:px-8 pb-20 w-full">
         <motion.div
           initial="hidden"
           animate="visible"
           variants={fadeInUp}
           className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100"
         >
-          {/* Header Thumbnail Berita */}
+          {/* Header Banner Berita */}
           <div className="h-64 sm:h-96 w-full bg-blue-900 relative group">
             <img
               src={gambarThumbnail}
@@ -142,41 +231,104 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
             </div>
           </div>
 
-          {/* Info Penulis & Waktu */}
-          <div className="px-6 sm:px-10 py-6 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-4 md:gap-8 items-center text-sm text-gray-500 font-medium">
-            <div className="flex items-center">
-              <svg
-                className="w-5 h-5 mr-2 text-blue-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              {tanggalFormat}
+          {/* Info Penulis, Waktu, Views, & Like */}
+          <div className="px-6 sm:px-10 py-5 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-4 items-center justify-between text-sm text-gray-500 font-medium">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+              <div className="flex items-center">
+                <svg
+                  className="w-5 h-5 mr-2 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                {tanggalFormat}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <svg
+                  className="w-4 h-4 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                  />
+                </svg>
+                <span>
+                  Oleh{" "}
+                  {post?.author?.name || post?.user?.name || "Admin / Humas"}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <svg
-                className="w-4 h-4 text-blue-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+
+            <div className="flex items-center gap-2.5">
+              <div
+                title="Jumlah pembaca artikel ini"
+                className="flex items-center gap-1.5 text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-100/80"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
-              <span>
-                Oleh {post?.author?.name || post?.user?.name || "Admin / Humas"}
-              </span>
+                <svg
+                  className="w-4 h-4 text-blue-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                  />
+                </svg>
+                <span className="font-bold text-xs">
+                  {(post?.views ?? 0).toLocaleString("id-ID")} kali dilihat
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleLike}
+                title={
+                  isLiked ? "Batal menyukai berita ini" : "Sukai berita ini"
+                }
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full border transition active:scale-95 cursor-pointer ${
+                  isLiked
+                    ? "bg-rose-50 border-rose-200 text-rose-600 font-bold"
+                    : "bg-white border-gray-200 text-gray-600 hover:bg-rose-50 hover:text-rose-600"
+                }`}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill={isLiked ? "currentColor" : "none"}
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                  />
+                </svg>
+                <span className="text-xs">
+                  {(post?.likes ?? 0).toLocaleString("id-ID")}
+                </span>
+              </button>
             </div>
           </div>
 
@@ -208,7 +360,7 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
               </div>
             )}
 
-            {/* FITUR BAGIKAN ARTIKEL */}
+            {/* Menu Bagikan */}
             <div className="mt-10 pt-8 border-t border-gray-100">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -221,7 +373,6 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {/* WhatsApp */}
                   <a
                     href={`https://api.whatsapp.com/send?text=${encodeURIComponent((post?.title || "") + "\n\n" + currentUrl)}`}
                     target="_blank"
@@ -238,7 +389,6 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
                     </svg>
                   </a>
 
-                  {/* Telegram */}
                   <a
                     href={`https://t.me/share/url?url=${encodeURIComponent(currentUrl)}&text=${encodeURIComponent(post?.title || "")}`}
                     target="_blank"
@@ -251,7 +401,6 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
                     </svg>
                   </a>
 
-                  {/* Facebook */}
                   <a
                     href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(currentUrl)}`}
                     target="_blank"
@@ -268,7 +417,6 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
                     </svg>
                   </a>
 
-                  {/* X / Twitter */}
                   <a
                     href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(currentUrl)}&text=${encodeURIComponent(post?.title || "")}`}
                     target="_blank"
@@ -285,7 +433,6 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
                     </svg>
                   </a>
 
-                  {/* LinkedIn */}
                   <a
                     href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(currentUrl)}`}
                     target="_blank"
@@ -298,7 +445,6 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
                     </svg>
                   </a>
 
-                  {/* Email */}
                   <a
                     href={`mailto:?subject=${encodeURIComponent(post?.title || "")}&body=${encodeURIComponent(metaDeskripsi + "\n\nBaca artikel selengkapnya: " + currentUrl)}`}
                     title="Kirim via Email"
@@ -319,11 +465,11 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
                     </svg>
                   </a>
 
-                  {/* Salin Tautan */}
                   <button
+                    type="button"
                     onClick={handleCopyLink}
                     title="Salin Tautan"
-                    className="relative w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center transition-all hover:scale-110 shadow-sm"
+                    className="relative w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center transition-all hover:scale-110 shadow-sm cursor-pointer"
                   >
                     <svg
                       className="w-5 h-5"
@@ -340,11 +486,11 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
                     </svg>
                   </button>
 
-                  {/* Web Share API */}
                   <button
+                    type="button"
                     onClick={handleNativeShare}
                     title="Lainnya"
-                    className="w-10 h-10 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 flex items-center justify-center transition-all hover:scale-110 shadow-sm"
+                    className="w-10 h-10 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 flex items-center justify-center transition-all hover:scale-110 shadow-sm cursor-pointer"
                   >
                     <svg
                       className="w-5 h-5"
@@ -363,7 +509,6 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
                 </div>
               </div>
 
-              {/* Toast Notifikasi Berhasil Salin */}
               <AnimatePresence>
                 {copied && (
                   <motion.div
@@ -393,7 +538,319 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
           </div>
         </motion.div>
 
-        {/* SECTION POSTINGAN TERKAIT */}
+        {/* ---------------- BAGIAN KOMENTAR DENGAN FITUR REPLY & EMOTIKON ---------------- */}
+        <section className="mt-12 bg-white rounded-3xl p-6 sm:p-10 shadow-lg border border-gray-100">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <span>Komentar & Tanggapan</span>
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                {hitungTotalKomentar()}
+              </span>
+            </h3>
+          </div>
+
+          {/* Form Kirim Komentar Utama */}
+          <form onSubmit={handleSubmitKomentar} className="mb-10 space-y-4">
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-500 mb-1">
+                Nama Lengkap Anda
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={60}
+                placeholder="Contoh: Rahmat Hidayat"
+                value={formComment.nama}
+                onChange={(e) =>
+                  setFormComment({ ...formComment, nama: e.target.value })
+                }
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="relative">
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold uppercase text-gray-500">
+                  Tulis Komentar
+                </label>
+                {/* Tombol Pemilih Emotikon Utama */}
+                <button
+                  type="button"
+                  onClick={() => setShowEmojiMain(!showEmojiMain)}
+                  className="text-xs font-semibold text-amber-600 hover:text-amber-700 inline-flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/60 cursor-pointer"
+                >
+                  <span>😊</span>
+                  <span>Tambah Emoji</span>
+                </button>
+              </div>
+
+              {/* Popover Emoji Picker Utama */}
+              <AnimatePresence>
+                {showEmojiMain && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                    className="absolute right-0 z-30 p-2.5 bg-white rounded-2xl shadow-xl border border-gray-100 grid grid-cols-5 gap-2"
+                  >
+                    {emojiList.map((emoji, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setFormComment({
+                            ...formComment,
+                            komentar: formComment.komentar + emoji,
+                          });
+                        }}
+                        className="text-lg hover:scale-125 transition-transform p-1.5 rounded-lg hover:bg-gray-100 cursor-pointer"
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <textarea
+                required
+                rows={3}
+                maxLength={1000}
+                placeholder="Sampaikan komentar atau tanggapan Anda..."
+                value={formComment.komentar}
+                onChange={(e) =>
+                  setFormComment({ ...formComment, komentar: e.target.value })
+                }
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              ></textarea>
+            </div>
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow transition disabled:opacity-50 cursor-pointer"
+            >
+              {isSubmitting ? "Mengirim..." : "Kirim Komentar"}
+            </button>
+          </form>
+
+          {/* Daftar Komentar Bersarang (Nested Thread Comments) */}
+          <div className="space-y-5 border-t border-gray-100 pt-6">
+            {post?.comments && post.comments.length > 0 ? (
+              post.comments.map((item) => (
+                <div key={item.id} className="space-y-3">
+                  {/* Komentar Induk / Utama */}
+                  <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 hover:border-gray-200 transition">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
+                          {item.nama.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="font-bold text-sm text-gray-900">
+                          {item.nama}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-gray-400">
+                        {new Date(item.created_at).toLocaleDateString("id-ID", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+
+                    <p className="text-gray-700 text-sm leading-relaxed pl-9 mb-2 whitespace-pre-line">
+                      {item.komentar}
+                    </p>
+
+                    {/* Tombol Balas (Reply) */}
+                    <div className="pl-9 flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (replyTarget === item.id) {
+                            setReplyTarget(null);
+                          } else {
+                            setReplyTarget(item.id);
+                            setFormReply({ nama: "", komentar: "" });
+                          }
+                        }}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-800 inline-flex items-center gap-1 cursor-pointer"
+                      >
+                        <svg
+                          className="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+                          />
+                        </svg>
+                        <span>
+                          {replyTarget === item.id ? "Batal Balas" : "Balas"}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Form Input Balasan / Inline Reply */}
+                    <AnimatePresence>
+                      {replyTarget === item.id && (
+                        <motion.form
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          onSubmit={(e) => handleSubmitReply(e, item.id)}
+                          className="mt-4 pl-9 space-y-3 pt-3 border-t border-gray-200/60 overflow-hidden"
+                        >
+                          <div className="text-xs font-semibold text-gray-500">
+                            Membalas{" "}
+                            <span className="text-blue-600 font-bold">
+                              {item.nama}
+                            </span>
+                            :
+                          </div>
+                          <input
+                            type="text"
+                            required
+                            maxLength={60}
+                            placeholder="Nama Anda"
+                            value={formReply.nama}
+                            onChange={(e) =>
+                              setFormReply({
+                                ...formReply,
+                                nama: e.target.value,
+                              })
+                            }
+                            className="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          />
+                          <div className="relative">
+                            <div className="flex justify-end mb-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setShowEmojiReply(!showEmojiReply)
+                                }
+                                className="text-[11px] text-amber-600 hover:text-amber-700 bg-amber-50 px-2 py-0.5 rounded cursor-pointer"
+                              >
+                                😊 Emoji
+                              </button>
+                            </div>
+
+                            {showEmojiReply && (
+                              <div className="absolute right-0 bottom-full mb-1 z-30 p-2 bg-white rounded-xl shadow-lg border border-gray-200 grid grid-cols-5 gap-1.5">
+                                {emojiList.map((emoji, idx) => (
+                                  <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() =>
+                                      setFormReply({
+                                        ...formReply,
+                                        komentar: formReply.komentar + emoji,
+                                      })
+                                    }
+                                    className="text-base hover:scale-125 transition-transform p-1 cursor-pointer"
+                                  >
+                                    {emoji}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            <textarea
+                              required
+                              rows={2}
+                              maxLength={1000}
+                              placeholder="Tulis balasan Anda..."
+                              value={formReply.komentar}
+                              onChange={(e) =>
+                                setFormReply({
+                                  ...formReply,
+                                  komentar: e.target.value,
+                                })
+                              }
+                              className="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
+                            ></textarea>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="submit"
+                              disabled={isSubmittingReply}
+                              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow transition disabled:opacity-50 cursor-pointer"
+                            >
+                              {isSubmittingReply
+                                ? "Mengirim..."
+                                : "Kirim Balasan"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setReplyTarget(null)}
+                              className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-xs font-medium cursor-pointer"
+                            >
+                              Batal
+                            </button>
+                          </div>
+                        </motion.form>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Daftar Balasan / Sub-Komentar (Indentasi Bersarang) */}
+                  {item.replies && item.replies.length > 0 && (
+                    <div className="ml-8 sm:ml-12 space-y-2 border-l-2 border-blue-200 pl-4">
+                      {item.replies.map((reply) => (
+                        <div
+                          key={reply.id}
+                          className="p-3.5 rounded-2xl bg-white border border-gray-100 shadow-sm"
+                        >
+                          <div className="flex justify-between items-center mb-1">
+                            <div className="flex items-center gap-2">
+                              <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[11px] font-bold">
+                                {reply.nama.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="font-bold text-xs text-gray-900">
+                                {reply.nama}
+                              </span>
+                              <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-semibold">
+                                Balasan
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-gray-400">
+                              {new Date(reply.created_at).toLocaleDateString(
+                                "id-ID",
+                                {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </span>
+                          </div>
+                          <p className="text-gray-700 text-xs leading-relaxed pl-8 whitespace-pre-line">
+                            {reply.komentar}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-sm text-gray-400 py-6">
+                Belum ada komentar. Jadilah yang pertama memberikan tanggapan!
+              </p>
+            )}
+          </div>
+        </section>
+
+        {/* Section Postingan Terkait */}
         {relatedPosts && relatedPosts.length > 0 && (
           <div className="mt-16">
             <div className="flex items-center justify-between mb-8">
@@ -486,7 +943,7 @@ export default function BeritaDetail({ post, relatedPosts = [] }) {
             </motion.div>
           </div>
         )}
-      </div>
+      </main>
 
       <Footer />
       <ScrollToTop />

@@ -43,4 +43,12 @@ class Post extends Model
     {
         return $this->belongsToMany(Tag::class);
     }
+
+    /**
+     * TAMBAHKAN INI: Relasi ke Komentar
+     */
+    public function comments()
+    {
+        return $this->hasMany(Comment::class)->latest();
+    }
 }

@@ -19,7 +19,7 @@ export default function BeritaSection({ posts = [] }) {
   return (
     <div id="berita" className="py-20 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header Judul & Navigasi */}
+        {/* Header Judul & Navigasi Geser Manual */}
         <motion.div
           initial="hidden"
           whileInView="visible"
@@ -88,7 +88,7 @@ export default function BeritaSection({ posts = [] }) {
           </div>
         </motion.div>
 
-        {/* Konten Kartu Berita (Posisinya Otomatis ke Tengah) */}
+        {/* Konten Kartu Berita (Posisi Otomatis Center bila Sedikit) */}
         {posts.length > 0 ? (
           <div
             ref={scrollContainerRef}
@@ -124,13 +124,43 @@ export default function BeritaSection({ posts = [] }) {
 
                 {/* Deskripsi & Judul */}
                 <div className="p-6 flex flex-col flex-grow">
-                  <p className="text-xs text-gray-400 font-semibold uppercase mb-2">
-                    {new Date(post.created_at).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </p>
+                  {/* Tanggal & Jumlah Tayangan / Pembaca */}
+                  <div className="flex justify-between items-center mb-2">
+                    <p className="text-xs text-gray-400 font-semibold uppercase">
+                      {new Date(post.created_at).toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </p>
+
+                    {/* Ikon dan Jumlah Pembaca (Views) */}
+                    <span
+                      title="Jumlah pembaca"
+                      className="inline-flex items-center gap-1 text-[11px] text-gray-400 font-medium bg-gray-50 px-2 py-0.5 rounded-full border border-gray-100"
+                    >
+                      <svg
+                        className="w-3.5 h-3.5 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                        />
+                      </svg>
+                      {(post.views ?? 0).toLocaleString("id-ID")}
+                    </span>
+                  </div>
 
                   <h4 className="text-lg font-bold text-gray-900 line-clamp-2 mb-3 group-hover:text-blue-600 transition">
                     <Link href={`/berita/${post.slug}`}>{post.title}</Link>

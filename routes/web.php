@@ -125,4 +125,7 @@ Route::get('/siswa', function () {
     ]);
 });
 
+Route::post('/berita/{slug}/like', [PublicController::class, 'toggleLike'])->name('berita.like');
+Route::post('/berita/{slug}/komentar', [PublicController::class, 'storeComment'])->name('berita.komentar');
+
 

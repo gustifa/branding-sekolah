@@ -249,7 +249,7 @@ export default function GuruSection({ dataGuru = [], namaSekolah }) {
                 onClick={() => setSelectedGuru(null)}
                 className="mt-6 w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition cursor-pointer"
               >
-                Tutup Maklumat
+                Tutup
               </button>
             </motion.div>
           </motion.div>

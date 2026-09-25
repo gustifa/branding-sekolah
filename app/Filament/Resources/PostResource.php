@@ -5,25 +5,32 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PostResource\Pages;
 use App\Filament\Resources\PostResource\RelationManagers;
 use App\Models\Post;
+use App\Services\GeminiService;
 use Filament\Forms;
+use Filament\Forms\Components\Actions\Action;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\BadgeColumn;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use FilamentTiptapEditor\Enums\TiptapOutput;
+use FilamentTiptapEditor\TiptapEditor;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Filament\Forms\Components\Grid;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\FileUpload;
-use FilamentTiptapEditor\TiptapEditor;
-use FilamentTiptapEditor\Enums\TiptapOutput;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
-use Illuminate\Support\Str; // <-- Tambahkan baris ini di sini
-use Filament\Forms\Components\Hidden;
-use Filament\Tables\Columns\TextColumn;
-
+use Illuminate\Support\Str;
 
 class PostResource extends Resource
 {
@@ -31,47 +38,47 @@ class PostResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-newspaper';
 
-    // 3. Masukkan ke dalam grup dropdown (Folder)
+    // Masukkan ke dalam grup dropdown (Folder)
     protected static ?string $navigationGroup = 'Manajemen Web';
 
-    // 4. Atur urutan menu (angka lebih kecil = posisi lebih atas)
+    // Atur urutan menu (angka lebih kecil = posisi lebih atas)
     protected static ?int $navigationSort = 10;
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                // Tambahkan baris ini untuk otomatis mengisi author_id
-            Hidden::make('author_id')
-                ->default(fn () => auth()->id()),
-                        Grid::make(3)->schema([
-                    // Kolom Kiri: Konten Utama (Lebar 2/3)
+                // Otomatis mengisi author_id dengan admin yang sedang login
+                Hidden::make('author_id')
+                    ->default(fn () => auth()->id()),
+
+                Grid::make(3)->schema([
+                    // ================= KOLOM KIRI: KONTEN UTAMA (2/3) =================
                     Section::make('Konten Berita')
                         ->schema([
                             TextInput::make('title')
                                 ->label('Judul Berita')
                                 ->required()
                                 ->live(onBlur: true)
-                                ->afterStateUpdated(fn (string $operation, $state, Forms\Set $set) => $operation === 'create' ? $set('slug', Str::slug($state)) : null),
+                                ->afterStateUpdated(fn (string $operation, $state, Set $set) => $operation === 'create' ? $set('slug', Str::slug($state)) : null),
 
                             TextInput::make('slug')
                                 ->required()
                                 ->unique(ignoreRecord: true),
 
                             TiptapEditor::make('content')
-                            ->label('Isi Berita')
-                            ->profile('default')
-                            ->output(TiptapOutput::Html)
-                            ->disk('public')
-                            ->directory('posts/content-images')
-                            ->maxContentWidth('5xl')
-                            ->required()
-                            ->columnSpanFull(),
+                                ->label('Isi Berita')
+                                ->profile('default')
+                                ->output(TiptapOutput::Html)
+                                ->disk('public')
+                                ->directory('posts/content-images')
+                                ->maxContentWidth('5xl')
+                                ->required()
+                                ->columnSpanFull(),
                         ])->columnSpan(2),
 
-                    // Kolom Kanan: Pengaturan & SEO (Lebar 1/3)
+                    // ================= KOLOM KANAN: PENGATURAN & SEO (1/3) =================
                     Grid::make(1)->schema([
-
                         Section::make('Publikasi')
                             ->schema([
                                 Select::make('status')
@@ -82,26 +89,92 @@ class PostResource extends Resource
                                     ])
                                     ->default('draft')
                                     ->required(),
+
                                 DateTimePicker::make('published_at')
                                     ->label('Tanggal Publikasi'),
+
+                                // GAMBAR UTAMA DENGAN AKSI GENERATE AI
                                 FileUpload::make('featured_image')
                                     ->label('Gambar Utama (Thumbnail)')
                                     ->image()
-                                    ->directory('posts/thumbnails'),
+                                    ->disk('public')
+                                    ->directory('posts/thumbnails')
+                                    ->live()
+                                    ->hintAction(
+                                        Action::make('generateWithAi')
+                                            ->label('✨ Buat Berita dengan AI')
+                                            ->icon('heroicon-m-sparkles')
+                                            ->color('success')
+                                            ->visible(fn (Get $get) => filled($get('featured_image')))
+                                            ->requiresConfirmation()
+                                            ->modalHeading('Buat Berita Otomatis dari Foto')
+                                            ->modalDescription('AI akan menganalisis foto kegiatan ini lalu mengisi Judul, Slug, Isi Berita (Tiptap Editor), dan Meta SEO secara otomatis. Lanjutkan?')
+                                            ->modalSubmitActionLabel('Ya, Buat Berita')
+                                            ->action(function (Get $get, Set $set) {
+                                                $image = $get('featured_image');
+
+                                                if (!$image) {
+                                                    Notification::make()
+                                                        ->title('Unggah gambar terlebih dahulu!')
+                                                        ->danger()
+                                                        ->send();
+                                                    return;
+                                                }
+
+                                                // Tangani format array jika Livewire mengembalikan multiple/array upload
+                                                if (is_array($image)) {
+                                                    $image = array_values($image)[0] ?? null;
+                                                }
+
+                                                try {
+                                                    Notification::make()
+                                                        ->title('Sedang memproses...')
+                                                        ->body('AI sedang menganalisis foto dan merangkai berita.')
+                                                        ->info()
+                                                        ->send();
+
+                                                    // Panggil Service Gemini
+                                                    $aiResult = GeminiService::generatePostFromImage($image);
+
+                                                    // Isi field form secara instan
+                                                    $set('title', $aiResult['title']);
+                                                    $set('slug', Str::slug($aiResult['title']));
+                                                    $set('content', $aiResult['content']);
+
+                                                    if (!empty($aiResult['meta_description'])) {
+                                                        $set('meta_description', $aiResult['meta_description']);
+                                                        $set('meta_title', $aiResult['title']);
+                                                    }
+
+                                                    Notification::make()
+                                                        ->title('Berhasil Dibuat!')
+                                                        ->body('Judul, Isi Berita, dan SEO berhasil terisi otomatis.')
+                                                        ->success()
+                                                        ->send();
+
+                                                } catch (\Exception $e) {
+                                                    Notification::make()
+                                                        ->title('Gagal membuat berita')
+                                                        ->body($e->getMessage())
+                                                        ->danger()
+                                                        ->send();
+                                                }
+                                            })
+                                    ),
                             ]),
-                        // Letakkan di dalam skema form (misalnya pada bagian publikasi atau sidebar form)
+
                         Select::make('category_id')
                             ->label('Kategori')
                             ->relationship('category', 'name')
                             ->searchable()
                             ->preload()
                             ->createOptionForm([
-                                \Filament\Forms\Components\TextInput::make('name')
+                                TextInput::make('name')
                                     ->label('Nama Kategori')
                                     ->required()
                                     ->live(onBlur: true)
                                     ->afterStateUpdated(fn ($state, callable $set) => $set('slug', Str::slug($state))),
-                                \Filament\Forms\Components\TextInput::make('slug')
+                                TextInput::make('slug')
                                     ->required()
                                     ->unique(table: 'categories', column: 'slug'),
                             ]),
@@ -113,12 +186,12 @@ class PostResource extends Resource
                             ->searchable()
                             ->preload()
                             ->createOptionForm([
-                                \Filament\Forms\Components\TextInput::make('name')
+                                TextInput::make('name')
                                     ->label('Nama Tag')
                                     ->required()
                                     ->live(onBlur: true)
                                     ->afterStateUpdated(fn ($state, callable $set) => $set('slug', Str::slug($state))),
-                                \Filament\Forms\Components\TextInput::make('slug')
+                                TextInput::make('slug')
                                     ->required()
                                     ->unique(table: 'tags', column: 'slug'),
                             ]),
@@ -127,19 +200,14 @@ class PostResource extends Resource
                             ->schema([
                                 TextInput::make('meta_title')
                                     ->label('Meta Title (Opsional)'),
-                                Forms\Components\Textarea::make('meta_description')
+                                Textarea::make('meta_description')
                                     ->label('Meta Description')
                                     ->maxLength(160),
                                 TextInput::make('meta_keywords')
                                     ->label('Meta Keywords'),
                             ]),
 
-
                     ])->columnSpan(1),
-
-
-
-
                 ])
             ]);
     }
@@ -148,16 +216,27 @@ class PostResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\ImageColumn::make('featured_image')->label('Gambar'),
-                Tables\Columns\TextColumn::make('title')->searchable()->label('Judul'),
-                Tables\Columns\BadgeColumn::make('status')
+                ImageColumn::make('featured_image')
+                    ->label('Gambar')
+                    ->disk('public'),
+
+                TextColumn::make('title')
+                    ->searchable()
+                    ->label('Judul'),
+
+                BadgeColumn::make('status')
                     ->colors([
                         'danger' => 'draft',
                         'success' => 'published',
                         'warning' => 'archived',
                     ]),
-                Tables\Columns\TextColumn::make('author.name')->label('Penulis'),
-                Tables\Columns\TextColumn::make('published_at')->dateTime()->sortable(),
+
+                TextColumn::make('author.name')
+                    ->label('Penulis'),
+
+                TextColumn::make('published_at')
+                    ->dateTime()
+                    ->sortable(),
 
                 TextColumn::make('category.name')
                     ->label('Kategori')
@@ -168,7 +247,6 @@ class PostResource extends Resource
                     ->label('Tag')
                     ->badge()
                     ->separator(', '),
-
             ])
             ->filters([
                 //

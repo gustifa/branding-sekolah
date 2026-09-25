@@ -60,41 +60,56 @@ Route::get('/kehadiran', function () {
     ]);
 });
 
-Route::get('/profil', function () {
-    return Inertia::render('Profil', [
-        // Mengambil data profil pertama (karena sejarah/visi misi biasanya hanya 1 baris data)
-        'profil' => ProfilSekolah::first(),
-        // Mengambil semua data guru & staff
-        'guruStaff' => GuruStaff::orderBy('kategori')->get(),
-        // Mengambil semua data fasilitas
-        'sarpras' => SaranaPrasarana::all()
-    ]);
-});
+// Route::get('/profil', function () {
+//     return Inertia::render('Profil', [
+//         // Mengambil data profil pertama (karena sejarah/visi misi biasanya hanya 1 baris data)
+//         'profil' => ProfilSekolah::first(),
+//         // Mengambil semua data guru & staff
+//         'guruStaff' => GuruStaff::orderBy('kategori')->get(),
+//         // Mengambil semua data fasilitas
+//         'sarpras' => SaranaPrasarana::all()
+//     ]);
+// });
 
 
 
-Route::get('/berita/{slug}', function ($slug, Post $post) {
-    // Ambil postingan terkait berdasarkan category_id yang sama (selain postingan saat ini)
-    $relatedPosts = Post::where('category_id', $post->category_id)
-        ->where('id', '!=', $post->id)
-        ->where('status', 'published')
-        ->when($post->category_id, function ($query) use ($post) {
-            $query->where('category_id', $post->category_id);
-        })
-        ->latest()
-        ->take(3)
-        ->get();
-    // Mencari berita berdasarkan slug, jika tidak ada kembalikan 404
-    $post = Post::where('slug', $slug)->firstOrFail();
+// Route::get('/berita/{slug}', function ($slug, Post $post) {
+//     // Ambil postingan terkait berdasarkan category_id yang sama (selain postingan saat ini)
+//     $relatedPosts = Post::where('category_id', $post->category_id)
+//         ->where('id', '!=', $post->id)
+//         ->where('status', 'published')
+//         ->when($post->category_id, function ($query) use ($post) {
+//             $query->where('category_id', $post->category_id);
+//         })
+//         ->latest()
+//         ->take(3)
+//         ->get();
+//     // Mencari berita berdasarkan slug, jika tidak ada kembalikan 404
+//     $post = Post::where('slug', $slug)->firstOrFail();
 
 
-    return Inertia::render('BeritaDetail', [
-        'post' => $post->load(['category', 'tags', 'author']),
-        'relatedPosts' => $relatedPosts,
-    ]);
-});
+//     return Inertia::render('BeritaDetail', [
+//         'post' => $post->load(['category', 'tags', 'author']),
+//         'relatedPosts' => $relatedPosts,
+//     ]);
+// });
 
-Route::get('/berita', [App\Http\Controllers\PublicController::class, 'berita'])->name('berita.index');
+// Route::get('/berita', [App\Http\Controllers\PublicController::class, 'berita'])->name('berita.index');
+
+// Halaman Utama / Beranda
+Route::get('/', [PublicController::class, 'home'])->name('home');
+
+// Halaman Daftar Berita (Dukungan filter ?kategori=... dan ?arsip=...)
+Route::get('/berita', [PublicController::class, 'berita'])->name('berita');
+
+// Halaman Baca Detail Berita
+Route::get('/berita/{slug}', [PublicController::class, 'beritaDetail'])->name('berita.detail');
+
+// Halaman Guru & Tenaga Kependidikan
+Route::get('/guru-staf', [PublicController::class, 'guruStaf'])->name('guru-staf');
+
+// Halaman Profil Sekolah
+Route::get('/profil', [PublicController::class, 'profil'])->name('profil');
 
 Route::get('/guru-staf', function () {
     return Inertia::render('Frontend/DirektoriGuru', [

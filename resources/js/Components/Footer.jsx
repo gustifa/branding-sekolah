@@ -1,63 +1,114 @@
-import React from 'react';
-import { Link, usePage } from '@inertiajs/react';
+import React from "react";
+import { Link, usePage } from "@inertiajs/react";
 
 export default function Footer() {
-    const { pengaturanWeb } = usePage().props;
-    const dataPengaturan = pengaturanWeb || {};
+  const { props } = usePage();
+  const dataPengaturan = props.pengaturanWeb || {};
+  const categories = props.footerCategories || [];
+  const archives = props.footerArchives || [];
 
-    const namaSekolah = dataPengaturan.nama_sekolah || 'SMK Negeri 1 Bukittinggi';
-    const alamat = dataPengaturan.alamat || 'Jl. Pendidikan, Bukittinggi';
-    const telepon = dataPengaturan.telepon || '(0752) XXXXX';
-    const email = dataPengaturan.email || 'info@smkn1bukittinggi.sch.id';
+  const namaSekolah = dataPengaturan.nama_sekolah || "SD NEGERI 59 PAYAKUMBUH";
+  const slogan =
+    dataPengaturan.slogan || "Berkarakter, Inovatif, Menjangkau Masa Depan";
+  const alamat =
+    dataPengaturan.alamat ||
+    "Pakan Sinayan, Payakumbuh Barat, Payakumbuh City, West Sumatra 26224";
+  const telepon = dataPengaturan.telepon || "085274817886";
+  const email = dataPengaturan.email || "fauzangustifa@gmail.com";
 
-    // Siapkan data cadangan (fallback) jika database masih kosong
-    const tautanDefault = [
-        { nama_tautan: 'Kementerian Pendidikan', url: 'https://kemdikbud.go.id' },
-        { nama_tautan: 'Dinas Pendidikan', url: '#' },
-        { nama_tautan: 'Kiosk Presensi (Mesin)', url: '/kiosk' },
-    ];
+  return (
+    <footer className="bg-[#1b3582] text-white pt-14 pb-8 border-t-4 border-yellow-500">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+          {/* Kolom 1: Profil Sekolah */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-extrabold uppercase tracking-wider text-white">
+              {namaSekolah}
+            </h3>
+            <p className="text-blue-100 text-sm leading-relaxed">{slogan}</p>
+          </div>
 
-    // Gunakan data dari database, atau fallback jika belum ada
-    const daftarTautan = pengaturanWeb?.tautan_penting || tautanDefault;
+          {/* Kolom 2: Arsip */}
+          <div>
+            <h3 className="text-base font-bold uppercase tracking-wider text-white mb-4">
+              ARSIP
+            </h3>
+            <ul className="space-y-2.5 text-sm text-blue-100">
+              {archives.length > 0 ? (
+                archives.map((item, index) => (
+                  <li key={index}>
+                    <Link
+                      href={`/berita?arsip=${item.month_key}`}
+                      className="hover:text-yellow-400 transition-colors flex items-center gap-2 group"
+                    >
+                      <span className="text-xs text-blue-300 group-hover:translate-x-1 transition-transform">
+                        &gt;
+                      </span>
+                      <span>{item.formatted_date}</span>
+                    </Link>
+                  </li>
+                ))
+              ) : (
+                <li className="text-xs text-blue-200">Belum ada arsip.</li>
+              )}
+            </ul>
+          </div>
 
-    return (
-        <footer className="bg-blue-900 text-blue-200 py-12 border-t-4 border-yellow-500 mt-10">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div>
-                    <h4 className="text-white text-lg font-bold mb-4">{namaSekolah}</h4>
-                    <p className="text-sm leading-relaxed">{dataPengaturan?.hero_deskripsi || 'Website Sistem Informasi Branding dan Manajemen Presensi Digital Sekolah terintegrasi IoT.'}</p>
-                </div>
-                <div>
-                    <h4 className="text-white text-lg font-bold mb-4">Tautan Penting</h4>
-                    <ul className="space-y-2 text-sm">
-                        {daftarTautan.map((tautan, index) => (
-                    <li key={index}>
-                        {/* Jika URL eksternal (http), gunakan tag <a> biasa. Jika internal, gunakan <Link> Inertia */}
-                        {tautan.url.startsWith('http') ? (
-                            <a href={tautan.url} target="_blank" rel="noreferrer" className="text-gray-300 hover:text-yellow-400 transition-colors">
-                                {tautan.nama_tautan}
-                            </a>
-                        ) : (
-                            <Link href={tautan.url} className="text-gray-300 hover:text-yellow-400 transition-colors">
-                                {tautan.nama_tautan}
-                            </Link>
-                        )}
-                    </li>
-                ))}
-                    </ul>
-                </div>
-                <div>
-                    <h4 className="text-white text-lg font-bold mb-4">Kontak</h4>
-                    <ul className="space-y-2 text-sm">
-                        <li>📍 {alamat}</li>
-                        <li>📞 {telepon}</li>
-                        <li>✉️ {email}</li>
-                    </ul>
-                </div>
+          {/* Kolom 3: Kategori */}
+          <div>
+            <h3 className="text-base font-bold uppercase tracking-wider text-white mb-4">
+              KATEGORI
+            </h3>
+            <ul className="space-y-2.5 text-sm text-blue-100">
+              {categories.length > 0 ? (
+                categories.map((cat) => (
+                  <li key={cat.id}>
+                    <Link
+                      href={`/berita?kategori=${cat.slug}`}
+                      className="hover:text-yellow-400 transition-colors flex items-center gap-2 group"
+                    >
+                      <span className="text-xs text-blue-300 group-hover:translate-x-1 transition-transform">
+                        &gt;
+                      </span>
+                      <span>{cat.name}</span>
+                    </Link>
+                  </li>
+                ))
+              ) : (
+                <li className="text-xs text-blue-200">Belum ada kategori.</li>
+              )}
+            </ul>
+          </div>
+
+          {/* Kolom 4: Kontak */}
+          <div>
+            <h3 className="text-base font-bold uppercase tracking-wider text-white mb-4">
+              KONTAK
+            </h3>
+            <div className="space-y-3 text-sm text-blue-100">
+              <div className="flex items-start gap-2.5">
+                <span className="text-red-400 mt-0.5">📍</span>
+                <span className="leading-snug">{alamat}</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <span className="text-pink-400">📞</span>
+                <span>{telepon}</span>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <span className="text-blue-300">✉️</span>
+                <span className="break-all">{email}</span>
+              </div>
             </div>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-8 border-t border-blue-800 text-sm text-center">
-                &copy; {new Date().getFullYear()} {namaSekolah}. All rights reserved.
-            </div>
-        </footer>
-    );
+          </div>
+        </div>
+
+        {/* Hak Cipta */}
+        <div className="pt-8 border-t border-blue-800/60 text-center text-xs text-blue-200">
+          <p>
+            © {new Date().getFullYear()} {namaSekolah}. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
 }
